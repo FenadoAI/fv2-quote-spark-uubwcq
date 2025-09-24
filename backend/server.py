@@ -73,6 +73,18 @@ class SearchResponse(BaseModel):
     sources_count: int
     error: Optional[str] = None
 
+
+class QuoteRequest(BaseModel):
+    theme: str
+
+
+class QuoteResponse(BaseModel):
+    success: bool
+    quote: str
+    theme: str
+    author: Optional[str] = None
+    error: Optional[str] = None
+
 # Routes
 @api_router.get("/")
 async def root():
@@ -194,6 +206,61 @@ async def get_agent_capabilities():
             "success": False,
             "error": str(e)
         }
+
+
+@api_router.post("/generate-quote", response_model=QuoteResponse)
+async def generate_quote(request: QuoteRequest):
+    # Generate AI-powered quotes based on theme
+    global chat_agent
+
+    try:
+        # Initialize chat agent if needed
+        if chat_agent is None:
+            chat_agent = ChatAgent(agent_config)
+
+        # Create a prompt for quote generation
+        prompt = f"""Generate a unique, inspiring, and meaningful quote about '{request.theme}'.
+        The quote should be:
+        - Original and creative (not a famous existing quote)
+        - Thought-provoking and meaningful
+        - Relevant to the theme of '{request.theme}'
+        - Between 10-50 words
+        - Written in a poetic or philosophical style
+
+        Please provide only the quote text, no additional explanation or attribution."""
+
+        # Generate quote using AI agent
+        result = await chat_agent.execute(prompt)
+
+        if result.success:
+            # Clean the quote text
+            quote_text = result.content.strip()
+            # Remove any quotes or extra formatting
+            quote_text = quote_text.strip('"').strip("'").strip()
+
+            return QuoteResponse(
+                success=True,
+                quote=quote_text,
+                theme=request.theme,
+                author="AI Generated"
+            )
+        else:
+            logger.error(f"Failed to generate quote: {result.error}")
+            return QuoteResponse(
+                success=False,
+                quote="",
+                theme=request.theme,
+                error=result.error
+            )
+
+    except Exception as e:
+        logger.error(f"Error in generate-quote endpoint: {e}")
+        return QuoteResponse(
+            success=False,
+            quote="",
+            theme=request.theme,
+            error=str(e)
+        )
 
 # Include router
 app.include_router(api_router)
